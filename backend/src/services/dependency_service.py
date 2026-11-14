@@ -48,7 +48,9 @@ def rebuild(db: Session, metrics: list[Metric], parsed_by_code: dict[str, dict])
                 "note": "数仓字段",
             }
 
-    for report in db.scalars(select(Report)).all():
+    for report in db.scalars(
+        select(Report).where(Report.status == "active")
+    ).all():
         for metric_code in report.metric_codes or []:
             metric = by_code.get(metric_code)
             if metric is None:

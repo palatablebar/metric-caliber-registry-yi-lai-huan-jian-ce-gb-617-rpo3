@@ -88,8 +88,15 @@ def ensure_metrics(db) -> int:
 
 
 def ensure_reports(db) -> int:
+    from datetime import date
+
+    from scripts.demo_config import REPORT_HISTORY, REPORT_LINEAGE
+    from src.constants.enums import ReportStatus
+    from src.models.report import ReportLineage
+
+    # 当前有效报表（12 张）：生效期间自 EPOCH 起，至今有效。
     for code, name, owner, is_core, weight, metric_codes, channel in REPORTS:
-        report = db.scalar(select(Report).where(Report.code == code))
+        report = db.scalar(select(Report).where(Report.code == code, Report.status == ReportStatus.ACTIVE.value))
         if report is not None:
             continue
         db.add(
@@ -102,10 +109,68 @@ def ensure_reports(db) -> int:
                 weight=weight,
                 metric_codes=list(metric_codes),
                 seed_key=f"seed-report-{code}",
+                valid_from=date(2000, 1, 1),
+                valid_to=None,
+                status=ReportStatus.ACTIVE.value,
+            )
+        )
+    # 历史报表登记（改名 / 拆分 / 合并 / 停用的前后归属，只追加不改写）。
+    for item in REPORT_HISTORY:
+        code = item["code"]
+        exists = db.scalar(
+            select(Report).where(Report.code == code, Report.valid_from == item["valid_from"])
+        )
+        if exists is not None:
+            continue
+        db.add(
+            Report(
+                code=code,
+                name=item["name"],
+                owner=item.get("owner", "星野零售 · 指标体系组"),
+                channel=item.get("channel", "BI"),
+                is_core=item.get("is_core", False),
+                weight=item.get("weight", 1),
+                metric_codes=list(item.get("metric_codes", [])),
+                seed_key=f"seed-report-history-{code}-{item['valid_from'].isoformat()}",
+                valid_from=item["valid_from"],
+                valid_to=item["valid_to"],
+                status=ReportStatus.RETIRED.value,
+            )
+        )
+    for edge in REPORT_LINEAGE:
+        exists = db.scalar(
+            select(ReportLineage).where(
+                ReportLineage.relation_kind == edge["relation_kind"],
+                ReportLineage.source_code == edge["source_code"],
+                ReportLineage.target_code == edge.get("target_code"),
+                ReportLineage.effective_on == edge["effective_on"],
+            )
+        )
+        if exists is not None:
+            continue
+        db.add(
+            ReportLineage(
+                relation_kind=edge["relation_kind"],
+                source_code=edge["source_code"],
+                target_code=edge.get("target_code"),
+                effective_on=edge["effective_on"],
+                note=edge.get("note", ""),
+                batch_no="seed-report-registry",
             )
         )
     db.flush()
-    return db.scalar(select(func.count()).select_from(Report)) or 0
+    return report_service_count_active(db)
+
+
+def report_service_count_active(db) -> int:
+    from src.constants.enums import ReportStatus
+
+    return (
+        db.scalar(
+            select(func.count()).select_from(Report).where(Report.status == ReportStatus.ACTIVE.value)
+        )
+        or 0
+    )
 
 
 def ensure_run(db) -> int:

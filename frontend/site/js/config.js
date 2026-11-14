@@ -19,9 +19,10 @@ export const BRAND = {
 export const NAV = [
   { to: '#/overview', no: '01', label: '总览', permission: 'overview:read' },
   { to: '#/metrics', no: '02', label: '指标注册', permission: 'metric:read' },
-  { to: '#/graph', no: '03', label: '依赖图', permission: 'dependency:read' },
-  { to: '#/conflicts', no: '04', label: '冲突与影响面', permission: 'conflict:read' },
-  { to: '#/changes', no: '05', label: '变更单与导出', permission: 'change:read' },
+  { to: '#/reports', no: '03', label: '报表登记', permission: 'report:read' },
+  { to: '#/graph', no: '04', label: '依赖图', permission: 'dependency:read' },
+  { to: '#/conflicts', no: '05', label: '冲突与影响面', permission: 'conflict:read' },
+  { to: '#/changes', no: '06', label: '变更单与导出', permission: 'change:read' },
 ];
 
 export const ROLE_LABELS = {
@@ -33,7 +34,7 @@ export const ROLE_LABELS = {
 export const PERMISSIONS = {
   admin: [
     'overview:read', 'metric:read', 'metric:write', 'formula:write',
-    'dependency:read', 'report:read', 'conflict:read',
+    'dependency:read', 'report:read', 'report:write', 'conflict:read',
     'run:read', 'run:create', 'change:read', 'change:write', 'change:approve',
     'export:read', 'audit:read',
   ],
@@ -67,6 +68,8 @@ export const ENUMS = {
   metricStatus: { draft: '草稿', active: '生效中', deprecated: '已下线' },
   parseStatus: { ok: '解析通过', error: '解析失败' },
   dependencyKind: { metric: '指标引用', field: '字段依赖', report: '报表引用' },
+  reportStatus: { active: '生效中', retired: '已停用' },
+  reportLineageKind: { rename: '改名', split: '拆分', merge: '合并', retire: '停用' },
   trigger: { manual: '手动', schedule: '定时', seed: '初始化' },
   runStatus: { queued: '排队中', running: '执行中', success: '成功', partial: '部分成功', failed: '失败' },
 };

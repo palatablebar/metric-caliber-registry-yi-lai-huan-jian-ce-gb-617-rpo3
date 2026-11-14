@@ -60,7 +60,7 @@ CREATE TABLE dependencies (
 
 CREATE TABLE reports (
     id              SERIAL PRIMARY KEY,
-    code            VARCHAR(24)  NOT NULL UNIQUE,
+    code            VARCHAR(24)  NOT NULL,             -- 编码可复用（改名/拆分/合并），与 valid_from 组成自然键
     name            VARCHAR(120) NOT NULL,
     owner           VARCHAR(80)  NOT NULL,
     channel         VARCHAR(40)  NOT NULL,
@@ -68,7 +68,44 @@ CREATE TABLE reports (
     weight          INTEGER      NOT NULL DEFAULT 1,   -- 核心报表 ×3
     metric_codes    JSON,
     refresh_cron    VARCHAR(40),
+    valid_from      DATE         NOT NULL DEFAULT '2000-01-01',  -- 生效期间 [valid_from, valid_to)
+    valid_to        DATE,                                           -- 空表示至今有效
+    status          VARCHAR(16)  NOT NULL DEFAULT 'active',        -- active/retired
     seed_key        VARCHAR(120) UNIQUE,
+    created_at      TIMESTAMP    NOT NULL,
+    updated_at      TIMESTAMP    NOT NULL,
+    CONSTRAINT uq_reports_code_valid_from UNIQUE (code, valid_from)
+);
+CREATE INDEX ix_reports_code_active ON reports (code, status);
+
+-- 报表编码血缘：改名 / 拆分 / 合并 / 停用的前后归属，只追加不改写
+CREATE TABLE report_lineages (
+    id              SERIAL PRIMARY KEY,
+    relation_kind   VARCHAR(16)  NOT NULL,             -- rename/split/merge/retire
+    source_code     VARCHAR(24)  NOT NULL,
+    target_code     VARCHAR(24),
+    effective_on    DATE         NOT NULL,
+    note            VARCHAR(400) NOT NULL DEFAULT '',
+    batch_no        VARCHAR(64),
+    created_at      TIMESTAMP    NOT NULL,
+    CONSTRAINT uq_report_lineage_edge UNIQUE (relation_kind, source_code, target_code, effective_on)
+);
+CREATE INDEX ix_report_lineages_source ON report_lineages (source_code);
+CREATE INDEX ix_report_lineages_target ON report_lineages (target_code);
+
+-- 清单导入批次：batch_no 幂等，重跑不新增记录
+CREATE TABLE report_import_batches (
+    id              SERIAL PRIMARY KEY,
+    batch_no        VARCHAR(64)  NOT NULL UNIQUE,
+    source          VARCHAR(80)  NOT NULL DEFAULT 'manual',
+    status          VARCHAR(16)  NOT NULL DEFAULT 'completed',
+    row_count       INTEGER      NOT NULL DEFAULT 0,
+    inserted        INTEGER      NOT NULL DEFAULT 0,
+    updated         INTEGER      NOT NULL DEFAULT 0,
+    skipped         INTEGER      NOT NULL DEFAULT 0,
+    lineage_added   INTEGER      NOT NULL DEFAULT 0,
+    detail          JSON,
+    operator_email  VARCHAR(160) NOT NULL,
     created_at      TIMESTAMP    NOT NULL
 );
 

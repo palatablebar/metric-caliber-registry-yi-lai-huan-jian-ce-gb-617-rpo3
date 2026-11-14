@@ -180,3 +180,33 @@ RUN_STATUS_LABELS: dict[str, str] = {
 # 报表权重：核心报表 ×3
 REPORT_WEIGHT_CORE = 3
 REPORT_WEIGHT_NORMAL = 1
+
+
+class ReportStatus(StrEnum):
+    """报表登记状态：生效中 / 已停用（改名、拆分、合并、下线后保留历史）。"""
+
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+REPORT_STATUS_LABELS: dict[str, str] = {
+    ReportStatus.ACTIVE.value: "生效中",
+    ReportStatus.RETIRED.value: "已停用",
+}
+
+
+class ReportLineageKind(StrEnum):
+    """报表编码血缘关系类型。"""
+
+    RENAME = "rename"
+    SPLIT = "split"
+    MERGE = "merge"
+    RETIRE = "retire"
+
+
+REPORT_LINEAGE_KIND_LABELS: dict[str, str] = {
+    ReportLineageKind.RENAME.value: "改名",
+    ReportLineageKind.SPLIT.value: "拆分",
+    ReportLineageKind.MERGE.value: "合并",
+    ReportLineageKind.RETIRE.value: "停用",
+}

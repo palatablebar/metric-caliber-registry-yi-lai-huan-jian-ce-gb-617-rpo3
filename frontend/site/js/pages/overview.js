@@ -15,7 +15,7 @@ export const overviewPage = {
     }
     const latest = data.latest_run;
     view.innerHTML = `
-      <div class="section-note">目录索引 · ${esc(BRAND.org)} · 口径 ${data.metrics_total} 条 / 报表 ${data.reports_total} 张（核心 ${data.core_reports} 张）· 后台任务 ${
+      <div class="section-note">目录索引 · ${esc(BRAND.org)} · 口径 ${data.metrics_total} 条 / 报表 ${data.reports_total} 张（核心 ${data.core_reports} 张${data.reports_retired ? `，历史停用 ${data.reports_retired} 张` : ''}）· 后台任务 ${
         data.worker_alive ? '在岗' : '心跳超时'
       }</div>
       ${statStrip([

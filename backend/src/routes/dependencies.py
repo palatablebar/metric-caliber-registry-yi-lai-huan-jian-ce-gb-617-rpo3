@@ -23,20 +23,29 @@ def list_dependencies(
 
 
 @router.get("/graph")
-def graph(db: Session = Depends(get_db), principal: dict = Depends(require_roles(*READ_ROLES))) -> dict:
-    return dependency_controller.graph(db)
+def graph(
+    as_of: str | None = None,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_roles(*READ_ROLES)),
+) -> dict:
+    return dependency_controller.graph(db, as_of=as_of)
 
 
 @router.get("/cycles")
-def cycles(db: Session = Depends(get_db), principal: dict = Depends(require_roles(*READ_ROLES))) -> dict:
-    return dependency_controller.cycles(db)
+def cycles(
+    as_of: str | None = None,
+    db: Session = Depends(get_db),
+    principal: dict = Depends(require_roles(*READ_ROLES)),
+) -> dict:
+    return dependency_controller.cycles(db, as_of=as_of)
 
 
 @router.get("/impact")
 def impact(
     field: str | None = None,
     metric: str | None = None,
+    as_of: str | None = None,
     db: Session = Depends(get_db),
     principal: dict = Depends(require_roles(*READ_ROLES)),
 ) -> dict:
-    return dependency_controller.impact(db, field=field, metric=metric)
+    return dependency_controller.impact(db, field=field, metric=metric, as_of=as_of)

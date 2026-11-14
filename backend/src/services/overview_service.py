@@ -19,7 +19,7 @@ from src.models.change_request import ChangeRequest
 from src.models.metric import Metric
 from src.models.report import Report
 from src.models.run import Run
-from src.services import graph_service
+from src.services import graph_service, report_service
 from src.utils.timeutil import local_now, utcnow
 
 
@@ -39,8 +39,18 @@ def worker_alive() -> bool:
 def overview(db: Session) -> dict:
     summary = graph_service.summary(db)
     metrics_total = db.scalar(select(func.count()).select_from(Metric)) or 0
-    reports_total = db.scalar(select(func.count()).select_from(Report)) or 0
-    core_reports = db.scalar(select(func.count()).select_from(Report).where(Report.is_core.is_(True))) or 0
+    reports_total = report_service.count_reports(db, active_only=True)
+    reports_retired = db.scalar(
+        select(func.count()).select_from(Report).where(Report.status == "retired")
+    ) or 0
+    core_reports = (
+        db.scalar(
+            select(func.count())
+            .select_from(Report)
+            .where(Report.is_core.is_(True), Report.status == "active")
+        )
+        or 0
+    )
     pending_changes = (
         db.scalar(
             select(func.count()).select_from(ChangeRequest).where(ChangeRequest.status == ChangeStatus.PENDING.value)
@@ -73,6 +83,7 @@ def overview(db: Session) -> dict:
     return {
         "metrics_total": metrics_total,
         "reports_total": reports_total,
+        "reports_retired": reports_retired,
         "core_reports": core_reports,
         "conflicts_total": summary["conflicts_total"],
         "cycles_total": summary["cycles_total"],

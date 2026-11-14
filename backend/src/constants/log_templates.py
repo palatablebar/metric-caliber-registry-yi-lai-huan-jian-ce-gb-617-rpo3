@@ -13,8 +13,10 @@ ACTIONS: dict[str, str] = {
     "change.approve": "批准变更单",
     "change.reject": "驳回变更单",
     "export.metrics": "导出指标清单",
+    "export.reports": "导出报表登记",
     "export.conflicts": "导出冲突与影响面",
     "export.changes": "导出变更单",
     "export.runs": "导出运行记录",
+    "report.import": "导入报表清单",
     "http.mutation": "写请求",
 }

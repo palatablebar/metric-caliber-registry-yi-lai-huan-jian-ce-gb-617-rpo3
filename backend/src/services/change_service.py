@@ -42,12 +42,14 @@ def next_cr_no(db: Session) -> str:
     return f"{prefix}-{count + 1:04d}"
 
 
-def compute_impact(db: Session, *, change_kind: str, target_ref: str, metric_code: str | None) -> dict:
+def compute_impact(
+    db: Session, *, change_kind: str, target_ref: str, metric_code: str | None, as_of: str | None = None
+) -> dict:
     if change_kind == ChangeKind.FIELD_TYPE.value:
-        return graph_service.impact_for_field(db, target_ref)
+        return graph_service.impact_for_field(db, target_ref, as_of=as_of)
     if not metric_code:
         raise AppError("VALIDATION", 422, {"field": "metric_code", "message": "口径/公式类变更需要指定指标"})
-    return graph_service.impact_for_metric(db, metric_code)
+    return graph_service.impact_for_metric(db, metric_code, as_of=as_of)
 
 
 def create_change(db: Session, payload: dict, *, requester: str) -> ChangeRequest:

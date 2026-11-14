@@ -5,9 +5,10 @@ import { drawer, emptyState, errorBox, errorMessage, esc, field, filterBar, fmtT
 const state = { status: '' };
 
 const EXPORTS = [
-  ['/api/exports/metrics.csv', 'metrics.csv', '指标清单', '48 条口径 + 解析结果 + 下游报表'],
-  ['/api/exports/conflicts.csv', 'conflicts.csv', '冲突与影响面', '同名冲突、差异字段、严重度'],
-  ['/api/exports/change-requests.csv', 'change-requests.csv', '变更单', '影响面与审批结论'],
+  ['/api/exports/metrics.csv', 'metrics.csv', '指标清单', '48 条口径 + 解析结果 + 下游报表（支持 ?as_of=）'],
+  ['/api/exports/reports.csv', 'reports.csv', '报表登记', '编码生效期间 + 拆分合并归属（支持 ?as_of=）'],
+  ['/api/exports/conflicts.csv', 'conflicts.csv', '冲突与影响面', '同名冲突、差异字段、严重度（支持 ?as_of=）'],
+  ['/api/exports/change-requests.csv', 'change-requests.csv', '变更单', '影响面快照与审批结论（含快照时点）'],
   ['/api/exports/runs.csv', 'runs.csv', '校验运行记录', '解析失败、环、冲突统计'],
 ];
 

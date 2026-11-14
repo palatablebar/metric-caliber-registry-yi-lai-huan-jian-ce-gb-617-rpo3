@@ -11,7 +11,7 @@ from src.models.audit import AuditLog  # noqa: E402
 from src.models.metric import Metric  # noqa: E402
 from src.models.formula import Formula  # noqa: E402
 from src.models.dependency import Dependency  # noqa: E402
-from src.models.report import Report  # noqa: E402
+from src.models.report import Report, ReportImportBatch, ReportLineage  # noqa: E402
 from src.models.change_request import ChangeRequest  # noqa: E402
 from src.models.run import Run  # noqa: E402
 
@@ -23,6 +23,8 @@ __all__ = [
     "Formula",
     "Dependency",
     "Report",
+    "ReportLineage",
+    "ReportImportBatch",
     "ChangeRequest",
     "Run",
 ]

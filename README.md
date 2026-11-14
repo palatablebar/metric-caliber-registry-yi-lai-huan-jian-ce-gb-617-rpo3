@@ -41,9 +41,22 @@
 | ③ | 依赖图与环检测（算法 B） | 依赖图 | `graph_analysis` + `graph_service` + `dependency_service` + `dependency_controller` | `GET /api/graph`、`GET /api/cycles`、`GET /api/dependencies` |
 | ④ | 口径冲突与影响面（算法 B） | 冲突与影响面 | `graph_analysis` + `graph_service` + `conflict_controller` | `GET /api/conflicts`、`GET /api/conflicts/{id}`、`GET /api/impact` |
 | ⑤ | 变更单与审批 | 变更单与导出 | `change_service` + `change_controller` | `GET/POST /api/change-requests`、`PATCH /api/change-requests/{id}` |
-| ⑥ | 报表登记与导出 | 变更单与导出（导出卡片）/ 冲突页导出按钮 | `report_service` + `export_service` + `export_controller` | `GET /api/reports`、`GET /api/exports/{metrics,conflicts,change-requests,runs}.csv` |
+| ⑥ | 报表登记与导出 | 报表登记 / 变更单与导出（导出卡片）/ 冲突页导出按钮 | `report_service` + `export_service` + `report_controller` + `export_controller` | `GET /api/reports`、`POST /api/reports/imports`、`GET /api/reports/lineages`、`GET /api/reports/import-batches`、`GET /api/exports/{metrics,reports,conflicts,change-requests,runs}.csv` |
 
 横切能力（不计入业务模块）：登录（JWT）、审计、限流、worker 心跳、总览。
+
+### 报表编码生效期间（改名 / 拆分 / 合并 / 停用）
+
+报表编码不再是全局唯一的一行，而是带生效期间的登记，保证新旧编号共存且不重复计入：
+
+- `reports` 每条登记带 `valid_from` / `valid_to` / `status(active|retired)`，自然键 `(code, valid_from)`，
+  同一 code 至多一条 active；时点 `as_of` 有效 ⇔ `valid_from <= as_of < valid_to`（`valid_to` 空表示至今）。
+- `report_lineages` 只追加记录 `rename/split/merge/retire` 的前后归属；旧登记置 retired 而非原地改写，
+  历史变更单的影响面快照（含 `as_of`）不被今天的映射改写。
+- `report_import_batches` 以 `batch_no` 为幂等键：重跑同一批次回放首次结果、不新增记录；
+  已 retired 的编码不会被晚到/乱序的 active 记录复活，active 登记的 `valid_from` 不可变。
+- 指标详情、依赖图、冲突、影响面、CSV 导出全部接受可选 `as_of=YYYY-MM-DD`，按同一时点还原同一套上下游；
+  不传 `as_of` 即「当前」，只统计 active 报表（核心报表不会因新旧编号并存被重复加权）。
 
 ## 4. 五个领域实体
 
@@ -52,7 +65,9 @@
 | `Metric` 指标 | `metrics` | `models/metric.py` | `schemas/metric.py` | `metric_service` | `metric_controller` / `routes/metrics.py` | `pages/metrics.js` + `api.js` |
 | `Formula` 口径公式 | `formulas` | `models/formula.py` | `schemas/metric.py`（`FormulaIn`/`ParseIn`） | `formula_service` + `dsl_parser` | `metric_controller` / `routes/metrics.py` | `pages/metrics.js` 抽屉 |
 | `Dependency` 依赖边 | `dependencies` | `models/dependency.py` | 只读出参（dict） | `dependency_service` | `dependency_controller` / `routes/dependencies.py` | `pages/graph.js` |
-| `Report` 报表 | `reports` | `models/report.py` | 只读出参（dict） | `report_service` | `report_controller` / `routes/reports.py` | `pages/graph.js` / `pages/conflicts.js` |
+| `Report` 报表 | `reports` | `models/report.py` | 只读出参（dict） | `report_service` | `report_controller` / `routes/reports.py` | `pages/reports.js` / `pages/graph.js` / `pages/conflicts.js` |
+| `ReportLineage` 报表血缘 | `report_lineages` | `models/report.py` | 只读出参（dict） | `report_service` | `report_controller` / `routes/reports.py` | `pages/reports.js` |
+| `ReportImportBatch` 导入批次 | `report_import_batches` | `models/report.py` | `schemas/report.py` | `report_service` | `report_controller` / `routes/reports.py` | `pages/reports.js` |
 | `ChangeRequest` 变更单 | `change_requests` | `models/change_request.py` | `schemas/change.py` | `change_service` | `change_controller` / `routes/change_requests.py` | `pages/changes.js` |
 
 横切表：`users`、`audit_logs`、`runs`（校验运行）。
@@ -76,16 +91,17 @@ UNBALANCED_PAREN / SELF_REFERENCE / NO_FIELD`。
 - **影响面** = 下游报表按权重求和（核心报表 ×3），`score >= 8` high、`>= 3` medium、否则 low；
 - 字段影响面：`impact_of_field('dwd.order.amount')` → 3 个指标 / 5 张报表 / 11 分 / high（验收数字）。
 
-## 6. 页面（6）
+## 6. 页面（7）
 
 | # | 路由 | 说明 |
 |---|---|---|
 | 1 | `#/login` | 登录：卡片柜抽屉 + 索书单表单 |
-| 2 | `#/overview` | 总览：指标 / 报表 / 同名冲突 / 依赖环 / 高风险 / 待审批，按等级与类型的条形、环路径、最近运行、7 天趋势 |
+| 2 | `#/overview` | 总览：指标 / 报表（含历史停用数）/ 同名冲突 / 依赖环 / 高风险 / 待审批，按等级与类型的条形、环路径、最近运行、7 天趋势 |
 | 3 | `#/metrics` | 指标注册：筛选 + 目录列表 + 详情抽屉（DSL 编辑、算法 A 解析预览、保存新版本、注册新指标） |
-| 4 | `#/graph` | 依赖图：节点/边统计、SCC 环路径卡、节点表 + 展开抽屉、依赖边清单（可按边类型筛选） |
-| 5 | `#/conflicts` | 冲突与影响面：严重度/类型筛选、两份口径并排对照、差异明细、影响面、一键提交变更单 |
-| 6 | `#/changes` | 变更单与导出：跑校验、变更单列表 + 审批抽屉、4 张 CSV 导出、审计尾迹（admin） |
+| 4 | `#/reports` | 报表登记：生效期间目录 + 状态/时点筛选 + 详情抽屉（拆分合并血缘）+ 清单批次导入（管理员）+ 导入批次记录 |
+| 5 | `#/graph` | 依赖图：节点/边统计、SCC 环路径卡、节点表 + 展开抽屉、依赖边清单（可按边类型筛选）、as_of 时点还原 |
+| 6 | `#/conflicts` | 冲突与影响面：严重度/类型/as_of 筛选、两份口径并排对照、差异明细、影响面、一键提交变更单 |
+| 7 | `#/changes` | 变更单与导出：跑校验、变更单列表 + 审批抽屉、5 张 CSV 导出（报表登记新增）、审计尾迹（admin） |
 
 共享组件（`site/js/ui.js`）：`table` / `drawer` / `filterBar` 同时被指标注册、依赖图、冲突、变更单四页复用。
 
@@ -97,6 +113,8 @@ UNBALANCED_PAREN / SELF_REFERENCE / NO_FIELD`。
 | 分级 `core/normal` | `MetricTier` | `ENUMS.metricTier` | 指标表徽标、详情、导出 |
 | 解析状态 `ok/error` | `ParseStatus` | `ENUMS.parseStatus` | 指标表/抽屉、依赖图节点、导出 |
 | 依赖边类型 `metric/field/report` | `DependencyKind` | `ENUMS.dependencyKind` | 依赖边清单筛选、导出 |
+| 报表状态 `active/retired` | `ReportStatus` | `ENUMS.reportStatus` | 报表登记页筛选/徽标、导出 |
+| 报表血缘 `rename/split/merge/retire` | `ReportLineageKind` | `ENUMS.reportLineageKind` | 报表登记页血缘表、导出 |
 | 冲突类型 `filter/field/agg/dep_diff` | `ConflictKind` | `ENUMS.conflictKind` | 冲突页筛选、总览差异类型、导出 |
 | 变更类型/状态 | `ChangeKind` / `ChangeStatus` | `ENUMS.changeKind` / `ENUMS.changeStatus` | 变更单页筛选、抽屉、导出 |
 | 严重度 `high/medium/low` | `Severity` | `ENUMS.severity` | 冲突/环/变更单徽标、总览 |
@@ -118,7 +136,9 @@ SEED_SUMMARY brand=metricreg users=3 sources=48 runs=1 findings=6 pending=6
 | `findings` | 检出问题 = 5 处同名冲突 + 1 个依赖环 + 0 条解析失败 |
 | `pending` | 待审批变更单 6 张 |
 
-另有 12 张报表（4 张核心）、依赖边由校验运行按当前口径重建。
+另有 12 张当前有效报表（4 张核心）+ 5 张已停用历史报表（改名 1 / 拆分 1 源 / 合并 2 源 / 停用 1，配 6 条血缘）、
+依赖边由校验运行按当前口径重建。历史报表不引用当前 12 张报表的指标集合，因此当前影响面与历史验收数字保持不变；
+`SEED_SUMMARY` 只统计当前有效报表，连续两次 seed 逐字一致。
 
 ## 9. 快速启动
 
@@ -163,6 +183,7 @@ backend/
   src/{config,constants,controllers,middlewares,models,routes,schemas,services,utils}
     services/dsl_parser.py        # 算法 A
     services/graph_analysis.py    # 算法 B
+    services/report_service.py    # 报表生效期间 / 血缘 / 批次幂等导入
   scripts/{seed_demo.py,demo_config.py,worker_healthcheck.sh}
   migrations/  tests/
 frontend/site/{index.html,css/{tokens,app}.css,js/{config,api,store,ui,app}.js,js/pages/*.js}

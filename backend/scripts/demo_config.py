@@ -1,9 +1,13 @@
 """演示账号与种子数据：星野零售 · 指标体系组。
 
 口径规模与 batch-plan「seed」一致：
-  48 个指标（5 处同名不同口径）、12 张报表（4 张核心）、1 个 3 节点依赖环、6 张待审批变更单。
+  48 个指标（5 处同名不同口径）、12 张当前有效报表（4 张核心）、1 个 3 节点依赖环、6 张待审批变更单。
+另有一组已停用历史报表（REPORT_HISTORY）与血缘（REPORT_LINEAGE），演示改名 / 拆分 / 合并 /
+停用的生效期间登记：旧编号保留为 retired，新编号另起 active，前后归属只追加不改写。
 指标 DSL 与报表引用关系是「算法 A 解析 + 算法 B 环/冲突/影响面」的真实输入。
 """
+
+from datetime import date
 
 DEMO_PASSWORD = "Demo@2026"
 
@@ -279,6 +283,116 @@ REPORTS = [
     ("r10", "财务成本分析", "周棠", False, 1, ["cost_total", "finance_tax", "cash_in", "ar_balance", "cycle_c"], "财务系统"),
     ("r11", "会员运营周报", "陈默", False, 1, ["coupon_used", "points_issued", "member_repurchase"], "BI"),
     ("r12", "品类价格监控", "苏敏", False, 1, ["price_index", "sku_on_sale", "sku_stockout"], "电商后台"),
+]
+
+# 历史报表登记（全部 retired）：演示改名、拆分、合并、停用的生效期间与前后归属。
+# 这些旧编号不引用当前 12 张有效报表的指标集合，避免污染当前影响面与历史验收数字。
+REPORT_HISTORY = [
+    # 改名：r00 经营日报（旧）-> r01 经营日报（新），2025-09-01 切换。
+    {
+        "code": "r00",
+        "name": "经营日报（旧版）",
+        "owner": "林可",
+        "is_core": True,
+        "weight": 3,
+        "metric_codes": ["gmv", "order_cnt"],
+        "channel": "BI",
+        "valid_from": date(2024, 1, 1),
+        "valid_to": date(2025, 9, 1),
+    },
+    # 拆分：r20 会员与流量周报 2026-01-01 拆成 r06 会员月报 + r07 流量日报。
+    {
+        "code": "r20",
+        "name": "会员与流量周报",
+        "owner": "陈默",
+        "is_core": False,
+        "weight": 1,
+        "metric_codes": ["member_cnt", "pv"],
+        "channel": "BI",
+        "valid_from": date(2024, 6, 1),
+        "valid_to": date(2026, 1, 1),
+    },
+    # 合并：r30 成本月报 + r31 税务简报 2026-03-01 合并进 r10 财务成本分析。
+    {
+        "code": "r30",
+        "name": "成本月报",
+        "owner": "周棠",
+        "is_core": False,
+        "weight": 1,
+        "metric_codes": ["cost_total"],
+        "channel": "财务系统",
+        "valid_from": date(2024, 3, 1),
+        "valid_to": date(2026, 3, 1),
+    },
+    {
+        "code": "r31",
+        "name": "税务简报",
+        "owner": "周棠",
+        "is_core": False,
+        "weight": 1,
+        "metric_codes": ["finance_tax"],
+        "channel": "财务系统",
+        "valid_from": date(2024, 3, 1),
+        "valid_to": date(2026, 3, 1),
+    },
+    # 停用：r40 旧渠道监控 2025-12-01 直接下线，无后继。
+    {
+        "code": "r40",
+        "name": "旧渠道监控",
+        "owner": "何川",
+        "is_core": False,
+        "weight": 1,
+        "metric_codes": ["channel_uv"],
+        "channel": "BI",
+        "valid_from": date(2023, 10, 1),
+        "valid_to": date(2025, 12, 1),
+    },
+]
+
+# 报表编码血缘（只追加）：relation_kind / source -> target / 生效日 / 说明。
+REPORT_LINEAGE = [
+    {
+        "relation_kind": "rename",
+        "source_code": "r00",
+        "target_code": "r01",
+        "effective_on": date(2025, 9, 1),
+        "note": "经营日报改版，编号 r00 改为 r01，口径延续。",
+    },
+    {
+        "relation_kind": "split",
+        "source_code": "r20",
+        "target_code": "r06",
+        "effective_on": date(2026, 1, 1),
+        "note": "会员与流量周报按域拆分为会员月报 r06。",
+    },
+    {
+        "relation_kind": "split",
+        "source_code": "r20",
+        "target_code": "r07",
+        "effective_on": date(2026, 1, 1),
+        "note": "会员与流量周报按域拆分为流量日报 r07。",
+    },
+    {
+        "relation_kind": "merge",
+        "source_code": "r30",
+        "target_code": "r10",
+        "effective_on": date(2026, 3, 1),
+        "note": "成本月报并入财务成本分析 r10。",
+    },
+    {
+        "relation_kind": "merge",
+        "source_code": "r31",
+        "target_code": "r10",
+        "effective_on": date(2026, 3, 1),
+        "note": "税务简报并入财务成本分析 r10。",
+    },
+    {
+        "relation_kind": "retire",
+        "source_code": "r40",
+        "target_code": None,
+        "effective_on": date(2025, 12, 1),
+        "note": "旧渠道监控下线，无后继报表。",
+    },
 ]
 
 # (seed_key, change_kind, target_ref, metric_code, reason, requester, proposed_dsl)

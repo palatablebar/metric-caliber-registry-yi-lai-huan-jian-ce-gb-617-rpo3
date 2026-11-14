@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { ENUMS, badgeTone, can } from '../config.js';
 import { chips, drawer, emptyState, errorBox, errorMessage, esc, field, filterBar, impactRows, kv, table, toast } from '../ui.js';
 
-const state = { severity: '', kind: '' };
+const state = { severity: '', kind: '', asOf: '' };
 
 function variantCard(metric, index) {
   return `<div class="diff-col">
@@ -80,7 +80,12 @@ export const conflictsPage = {
   async render(view, ctx) {
     let data;
     try {
-      data = await api.get('/api/conflicts', { severity: state.severity, kind: state.kind, limit: 50 });
+      data = await api.get('/api/conflicts', {
+        severity: state.severity,
+        kind: state.kind,
+        as_of: state.asOf || undefined,
+        limit: 50,
+      });
     } catch (err) {
       view.innerHTML = errorBox(errorMessage(err));
       view.querySelector('#retry-btn')?.addEventListener('click', () => conflictsPage.render(view, ctx));
@@ -91,13 +96,14 @@ export const conflictsPage = {
         <div class="panel-head">
           <h2>同名不同口径 · 冲突与影响面</h2>
           <div style="display:flex;gap:10px;align-items:center">
-            <span class="meta">${data.total} 处</span>
+            <span class="meta">${data.total} 处${state.asOf ? ` · 还原时点 ${esc(state.asOf)}` : ''}</span>
             ${can(ctx.user.role, 'export:read') ? '<button class="btn sm ghost" id="export-conflicts">导出 CSV</button>' : ''}
           </div>
         </div>
         ${filterBar('conflict-filters', [
           { label: '严重度', name: 'severity', value: state.severity, options: [{ value: '', label: '全部等级' }, ...Object.entries(ENUMS.severity).map(([value, label]) => ({ value, label }))] },
           { label: '差异类型', name: 'kind', value: state.kind, options: [{ value: '', label: '全部类型' }, ...Object.entries(ENUMS.conflictKind).map(([value, label]) => ({ value, label }))] },
+          { label: '还原时点 as_of', name: 'as_of', value: state.asOf, placeholder: 'YYYY-MM-DD', type: 'date' },
         ])}
         ${table({
           rows: data.items,
@@ -126,11 +132,13 @@ export const conflictsPage = {
     filters?.addEventListener('change', () => {
       state.severity = filters.querySelector('[name=severity]').value;
       state.kind = filters.querySelector('[name=kind]').value;
+      state.asOf = filters.querySelector('[name=as_of]').value;
       conflictsPage.render(view, ctx);
     });
     view.querySelector('#export-conflicts')?.addEventListener('click', async () => {
       try {
-        await api.download('/api/exports/conflicts.csv', 'conflicts.csv');
+        const suffix = state.asOf ? `?as_of=${encodeURIComponent(state.asOf)}` : '';
+        await api.download(`/api/exports/conflicts.csv${suffix}`, 'conflicts.csv');
         toast('冲突与影响面 CSV 已下载');
       } catch (err) {
         toast(errorMessage(err), 'err');

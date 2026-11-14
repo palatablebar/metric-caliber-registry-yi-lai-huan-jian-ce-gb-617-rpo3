@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { ENUMS, badgeTone, can } from '../config.js';
 import { chips, cyclePath, drawer, emptyState, errorBox, errorMessage, esc, filterBar, impactRows, kv, table, toast } from '../ui.js';
 
-const state = { kind: '' };
+const state = { kind: '', asOf: '' };
 
 function openCycle(view, ctx, cycle) {
   drawer({
@@ -56,7 +56,7 @@ export const graphPage = {
     let graph;
     let deps;
     try {
-      graph = await api.get('/api/graph');
+      graph = await api.get('/api/graph', { as_of: state.asOf || undefined });
       deps = await api.get('/api/dependencies', { kind: state.kind, limit: 200 });
     } catch (err) {
       view.innerHTML = errorBox(errorMessage(err));
@@ -66,8 +66,14 @@ export const graphPage = {
     const stats = graph.stats;
     view.innerHTML = `
       <section class="panel">
-        <div class="panel-head"><h2>依赖图概览</h2><span class="meta">algorithm B · tarjan</span></div>
+        <div class="panel-head">
+          <h2>依赖图概览</h2>
+          <span class="meta">algorithm B · tarjan${graph.as_of ? ` · 还原时点 ${esc(graph.as_of)}` : ''}</span>
+        </div>
         <div class="panel-body">
+          ${filterBar('graph-asof-filters', [
+            { label: '还原时点 as_of', name: 'as_of', value: state.asOf, placeholder: 'YYYY-MM-DD', type: 'date' },
+          ])}
           <div class="stat-strip">
             <div class="stat"><span class="k">NODES</span><span class="v">${esc(stats.nodes)}</span><span class="hint">指标节点</span></div>
             <div class="stat"><span class="k">DEP EDGES</span><span class="v">${esc(stats.dep_edges)}</span><span class="hint">指标 → 指标</span></div>
@@ -142,6 +148,12 @@ export const graphPage = {
         })}
       </section>`;
 
+    view.querySelector('#graph-asof-filters')?.addEventListener('change', (event) => {
+      if (event.target.name === 'as_of') {
+        state.asOf = event.target.value;
+        graphPage.render(view, ctx);
+      }
+    });
     view.querySelector('#dep-filters')?.addEventListener('change', (event) => {
       state.kind = event.target.value;
       graphPage.render(view, ctx);
